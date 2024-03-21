@@ -1,20 +1,15 @@
-use antlr::{
-    loxparser::{
-        AssignmentContext, Assignment_altContext, Bool_falseContext, Bool_trueContext,
-        ComparisonContext, EqualityContext, ExpressionContext, GroupContext, Logic_andContext,
-        Logic_orContext, NilContext, NumberContext, StrvalContext, UnaryContext, Unary_altContext,
-    },
-    loxvisitor::LoxVisitor,
+use antlr::loxparser::{
+    Assignment_altContext, Bool_falseContext, Bool_trueContext, ComparisonContext, EqualityContext,
+    ExpressionContext, GroupContext, Logic_andContext, Logic_orContext, NilContext, NumberContext,
+    StrvalContext, Unary_altContext,
 };
 use antlr_rust::{
     common_token_stream::CommonTokenStream,
-    parser::ParserNodeType,
-    rule_context::CustomRuleContext,
-    tree::{ParseTree, ParseTreeVisitor, ParseTreeVisitorCompat, TerminalNode, Tree},
+    tree::{ParseTree, ParseTreeVisitorCompat, Tree},
     InputStream,
 };
-use std::{collections::HashMap, default};
-use std::{mem, unreachable};
+use std::collections::HashMap;
+use std::unreachable;
 
 mod antlr {
     pub mod loxlexer;
@@ -25,9 +20,9 @@ mod antlr {
 use crate::antlr::{
     loxlexer::LoxLexer,
     loxparser::{
-        AssignmentContextAttrs, Assignment_altContextAttrs, ComparisonContextAttrs,
-        EqualityContextAttrs, FactorContextAttrs, GroupContextAttrs, LoxParser,
-        LoxParserContextType, TermContextAttrs, UnaryContextAttrs, Unary_altContextAttrs,
+        Assignment_altContextAttrs, ComparisonContextAttrs, EqualityContextAttrs,
+        FactorContextAttrs, GroupContextAttrs, LoxParser, LoxParserContextType, TermContextAttrs,
+        Unary_altContextAttrs, VarDeclContextAttrs,
     },
     loxvisitor::LoxVisitorCompat,
 };
@@ -50,8 +45,9 @@ impl ParseTreeVisitorCompat<'_> for LoxVisit {
         &mut self.val
     }
 
-    fn aggregate_results(&self, aggregate: Self::Return, next: Self::Return) -> Self::Return {
-        unreachable!();
+    fn aggregate_results(&self, _aggregate: Self::Return, next: Self::Return) -> Self::Return {
+        //  unreachable!();
+        next
     }
 }
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -120,6 +116,21 @@ impl LoxVisitorCompat<'_> for LoxVisit {
     // fn visit_pri(&mut self, ctx: &antlr::loxparser::PriContext<'_>) -> TermValue {
 
     // }
+
+    fn visit_printStmt(&mut self, ctx: &antlr::loxparser::PrintStmtContext<'_>) -> Self::Return {
+        println!("visit_printStmt");
+        let res = self.visit(&*ctx.exp.as_ref().unwrap().as_ref());
+        println!("{:?}", res);
+        res
+    }
+    fn visit_varDecl(&mut self, ctx: &antlr::loxparser::VarDeclContext<'_>) -> Self::Return {
+        println!("visit_varDecl");
+        let id = ctx.IDENTIFIER().unwrap().get_text();
+        let val = self.visit(&*ctx.expr.as_ref().unwrap().as_ref());
+        self.variables.insert(id.clone(), val.clone());
+        println!("{} = {:?}", id, val);
+        TermValue::Empty
+    }
     fn visit_identifier(&mut self, ctx: &antlr::loxparser::IdentifierContext<'_>) -> Self::Return {
         println!("visit_identifier");
         let id = ctx.get_text();
@@ -333,11 +344,11 @@ impl LoxVisitorCompat<'_> for LoxVisit {
         let res = self.visit(ctx.expression().as_ref().unwrap().as_ref());
         res
     }
-    fn visit_bool_false(&mut self, ctx: &Bool_falseContext) -> TermValue {
+    fn visit_bool_false(&mut self, _ctx: &Bool_falseContext) -> TermValue {
         println!("visit_bool_false");
         TermValue::False
     }
-    fn visit_bool_true(&mut self, ctx: &Bool_trueContext) -> TermValue {
+    fn visit_bool_true(&mut self, _ctx: &Bool_trueContext) -> TermValue {
         println!("visit_bool_true");
         TermValue::True
     }
@@ -346,7 +357,7 @@ impl LoxVisitorCompat<'_> for LoxVisit {
         let text = ctx.get_text();
         TermValue::Number(text.parse().unwrap())
     }
-    fn visit_nil(&mut self, ctx: &NilContext) -> TermValue {
+    fn visit_nil(&mut self, _ctx: &NilContext) -> TermValue {
         println!("visit_nil");
         TermValue::Nil
     }
@@ -357,7 +368,7 @@ impl LoxVisitorCompat<'_> for LoxVisit {
 }
 fn main() {
     let mut _lexer = LoxLexer::new(InputStream::new("var a = 2+3; print a;".into()));
-    let mut token_source = CommonTokenStream::new(_lexer);
+    let token_source = CommonTokenStream::new(_lexer);
     // token_source.iter().for_each(|token| {
     //     println!("{:?}", token);
     // });
