@@ -1,7 +1,7 @@
 .idea
 .vscode
 /target
-/antlr/** 
+/src/antlr
 /tests/gen/*.tokens
 /tests/gen/*.interp
 **/*.rs.bk
