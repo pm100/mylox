@@ -1,10 +1,22 @@
+use crate::antlr::{loxparser::LoxParserContextType, loxvisitor::LoxVisitorCompat};
+use antlr_rust::atn_config_set::ATNConfigSet;
+use antlr_rust::dfa::DFA;
+use antlr_rust::recognizer::Recognizer;
 use antlr_rust::{
     error_listener::ErrorListener,
     tree::{ErrorNode, ParseTree, ParseTreeVisitorCompat},
 };
+use bit_set::BitSet;
 
-use crate::antlr::{loxparser::LoxParserContextType, loxvisitor::LoxVisitorCompat};
-use antlr_rust::recognizer::Recognizer;
+/*
+
+    Errdetectvisitor is used to detect that a parsing error has occurred.
+    It seems impossible to get the error from the parser or from the ErrorHandler
+    But the parser does insert ErrorNodes into the tree, so we can detect those.
+    So this visitor makes a pass over the tree and if it finds an ErrorNode it returns it
+    Run before the vistor that does the actual work, so that the error is detected before
+
+*/
 #[derive(Default, Debug, PartialEq)]
 pub enum ErrVal {
     #[default]
@@ -27,22 +39,24 @@ impl ParseTreeVisitorCompat<'_> for ErrDetectVisit {
         &mut self.val
     }
 
-    fn aggregate_results(&self, _aggregate: Self::Return, next: Self::Return) -> Self::Return {
-        //  unreachable!();
-        // println!("Aggregating: {:?} {:?}", _aggregate, next);
-        if _aggregate == ErrVal::Empty {
+    fn aggregate_results(&self, aggregate: Self::Return, next: Self::Return) -> Self::Return {
+        // once an error is detected keep propagting it
+        if aggregate == ErrVal::Empty {
             next
         } else {
-            _aggregate
+            aggregate
         }
-        //next
     }
     fn visit_error_node(&mut self, node: &ErrorNode<'_, Self::Node>) -> Self::Return {
-        // println!("Error: {:?}", node.get_text());
         ErrVal::Error(node.get_text())
     }
 }
-impl LoxVisitorCompat<'_> for ErrDetectVisit {}
+impl LoxVisitorCompat<'_> for ErrDetectVisit {
+    // this takes the default implementation
+    // which just visits the entire tree
+}
+
+// This is the error listerner that is attached to the parser
 pub struct MyErrorListener {}
 impl MyErrorListener {
     pub fn new() -> Self {
@@ -60,41 +74,43 @@ impl<'a, T: Recognizer<'a>> ErrorListener<'a, T> for MyErrorListener {
         msg: &str,
         _error: Option<&antlr_rust::errors::ANTLRError>,
     ) {
-        println!("line {}:{} {}", line, column, msg);
-      
+        println!("a line {}:{} {}", line, column, msg);
     }
 
-    // fn report_ambiguity(
-    //     &self,
-    //     _recognizer: &T,
-    //     _dfa: &DFA,
-    //     _start_index: isize,
-    //     _stop_index: isize,
-    //     _exact: bool,
-    //     _ambig_alts: &BitSet,
-    //     _configs: &ATNConfigSet,
-    // ) {
-    // }
+    fn report_ambiguity(
+        &self,
+        _recognizer: &T,
+        _dfa: &DFA,
+        start_index: isize,
+        stop_index: isize,
+        _exact: bool,
+        _ambig_alts: &BitSet,
+        _configs: &ATNConfigSet,
+    ) {
+        println!("b error {} {}", start_index, stop_index   );
+    }
 
-    // fn report_attempting_full_context(
-    //     &self,
-    //     _recognizer: &T,
-    //     _dfa: &DFA,
-    //     _start_index: isize,
-    //     _stop_index: isize,
-    //     _conflicting_alts: &BitSet,
-    //     _configs: &ATNConfigSet,
-    // ) {
-    // }
+    fn report_attempting_full_context(
+        &self,
+        _recognizer: &T,
+        _dfa: &DFA,
+        start_index: isize,
+        stop_index: isize,
+        _conflicting_alts: &BitSet,
+        _configs: &ATNConfigSet,
+    ) {
+        println!("c error {} {}", start_index, stop_index   );
+    }
 
-    // fn report_context_sensitivity(
-    //     &self,
-    //     _recognizer: &T,
-    //     _dfa: &DFA,
-    //     _start_index: isize,
-    //     _stop_index: isize,
-    //     _prediction: isize,
-    //     _configs: &ATNConfigSet,
-    // ) {
-    // }
+    fn report_context_sensitivity(
+        &self,
+        _recognizer: &T,
+        _dfa: &DFA,
+        start_index: isize,
+        stop_index: isize,
+        _prediction: isize,
+        _configs: &ATNConfigSet,
+    ) {
+        println!("d error {} {}", start_index, stop_index   );
+    }
 }

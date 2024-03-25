@@ -1,46 +1,49 @@
 use crate::{
     antlr::{
         self,
-        loxlexer::LoxLexer,
         loxparser::{
             Assignment_altContextAttrs, ComparisonContextAttrs, EqualityContextAttrs,
-            FactorContextAttrs, GroupContextAttrs, IdentifierContext, LoxParser,
-            LoxParserContextType, PrintStmtContext, TermContextAttrs, Unary_altContextAttrs,
-            VarDeclContext, VarDeclContextAttrs,
+            FactorContextAttrs, GroupContextAttrs, IdentifierContext, LoxParserContextType,
+            PrintStmtContext, TermContextAttrs, Unary_altContextAttrs, VarDeclContext,
+            VarDeclContextAttrs,
         },
         loxvisitor::LoxVisitorCompat,
     },
-    MyErrorListener,
+    trace,
 };
 use antlr::loxparser::{
     Assignment_altContext, Bool_falseContext, Bool_trueContext, ComparisonContext, EqualityContext,
     ExpressionContext, GroupContext, Logic_andContext, Logic_orContext, NilContext, NumberContext,
     StrvalContext, Unary_altContext,
 };
-use antlr_rust::{
-    common_token_stream::CommonTokenStream,
-    error_listener::ErrorListener,
-    parser_rule_context::ParserRuleContext,
-    tree::{ErrorNode, ParseTree, ParseTreeVisitorCompat, Tree},
-    InputStream,
-};
-use antlr_rust::{tree::LeafNode, BaseParser};
-use anyhow::Result;
-use std::unreachable;
-use std::{collections::HashMap, rc::Rc};
+use antlr_rust::tree::{ErrorNode, ParseTree, ParseTreeVisitorCompat, Tree};
 
-use antlr_rust::recognizer::Recognizer;
+use std::collections::HashMap;
+use std::unreachable;
+
+struct ExecutionState {
+    pub variables: HashMap<String, TermValue>,
+    pub return_value: TermValue,
+}
+
+impl ExecutionState {
+    pub fn new() -> Self {
+        Self {
+            variables: HashMap::new(),
+            return_value: TermValue::Empty,
+        }
+    }
+}
 pub struct InterpVisit {
-    val: TermValue,
-    variables: HashMap<String, TermValue>,
-    //el: &'a Box<dyn ErrorDector<'a, R>>,
+    // val: TermValue,
+    state: Vec<ExecutionState>,
 }
 
 impl InterpVisit {
     pub fn new() -> Self {
         Self {
-            val: TermValue::Empty,
-            variables: HashMap::new(),
+            //val: TermValue::Empty,
+            state: vec![ExecutionState::new()],
         }
     }
 }
@@ -48,7 +51,8 @@ impl ParseTreeVisitorCompat<'_> for InterpVisit {
     type Node = LoxParserContextType;
     type Return = TermValue;
     fn temp_result(&mut self) -> &mut Self::Return {
-        &mut self.val
+        let top = self.state.len() - 1;
+        &mut self.state[top].return_value
     }
 
     fn aggregate_results(&self, _aggregate: Self::Return, next: Self::Return) -> Self::Return {
@@ -74,13 +78,10 @@ pub enum TermValue {
 
 impl LoxVisitorCompat<'_> for InterpVisit {
     fn visit_program(&mut self, ctx: &antlr::loxparser::ProgramContext<'_>) -> Self::Return {
-        println!("visit_program");
+        trace!("visit_program");
 
         let mut result = Self::Return::default();
         for node in ctx.get_children() {
-            let n = node.as_ref();
-            println!("child: {:?}", n);
-            println!("child: {:?}", node.get_text());
             result = self.visit(node.as_ref());
 
             if let TermValue::Error(_) = result {
@@ -90,32 +91,69 @@ impl LoxVisitorCompat<'_> for InterpVisit {
         return result;
     }
     fn visit_printStmt(&mut self, ctx: &PrintStmtContext) -> Self::Return {
-        println!("visit_printStmt");
+        trace!("visit_printStmt {:?}", ctx.get_text());
         let res = self.visit(&*ctx.exp.as_ref().unwrap().as_ref());
-        println!("{:?}", res);
+        match &res {
+            TermValue::Error(_) => {
+                return res;
+            }
+            TermValue::Nil => {
+                println!("nil");
+            }
+            TermValue::True => {
+                println!("true");
+            }
+            TermValue::False => {
+                println!("false");
+            }
+            TermValue::Number(x) => {
+                println!("{}", x);
+            }
+            TermValue::StringValue(x) => {
+                println!("{}", x);
+            }
+            _ => {
+                println!("unknown");
+            }
+        }
         res
     }
     fn visit_varDecl(&mut self, ctx: &VarDeclContext) -> Self::Return {
-        println!("visit_varDecl");
+        trace!("visit_varDecl {:?}", ctx.get_text());
         let id = ctx.IDENTIFIER().unwrap().get_text();
         let val = self.visit(&*ctx.expr.as_ref().unwrap().as_ref());
         if let TermValue::Error(_) = val {
             return val;
         }
-        self.variables.insert(id.clone(), val.clone());
-        println!("{} = {:?}", id, val);
+        let top = self.state.len() - 1;
+        self.state[top].variables.insert(id.clone(), val.clone());
         TermValue::Empty
     }
+    fn visit_block(&mut self, ctx: &antlr::loxparser::BlockContext<'_>) -> Self::Return {
+        trace!("visit_block {:?}", ctx.get_text());
+        let mut result = Self::Return::default();
+        self.state.push(ExecutionState::new());
+        for node in ctx.get_children() {
+            trace!("visit_block child {:?}", node);
+
+            result = self.visit(node.as_ref());
+            if let TermValue::Error(_) = result {
+                return result;
+            }
+        }
+        self.state.pop();
+        result
+    }
     fn visit_identifier(&mut self, ctx: &IdentifierContext) -> Self::Return {
-        println!("visit_identifier");
+        trace!("visit_identifier {:?}", ctx.get_text());
         let id = ctx.get_text();
-        if let Some(val) = self.variables.get(&id) {
+        if let Some(val) = self.state[self.state.len() - 1].variables.get(&id) {
             return val.clone();
         }
         TermValue::Error("Variable not found".to_string())
     }
     fn visit_expression(&mut self, ctx: &ExpressionContext) -> Self::Return {
-        println!("visit_expression");
+        trace!("visit_expression {:?}", ctx.get_text());
         self.visit(ctx.get_child(0).as_ref().unwrap().as_ref())
     }
     fn visit_logic_or_alt(
@@ -126,18 +164,18 @@ impl LoxVisitorCompat<'_> for InterpVisit {
     }
     fn visit_assignment_alt(&mut self, ctx: &Assignment_altContext) -> TermValue {
         println!("visit_asg");
+        trace!("visit_assignment_alt {:?}", ctx.get_text());
         let id = ctx.IDENTIFIER().unwrap().get_text();
         let val = self.visit(&*ctx.iter.as_ref().unwrap().as_ref());
         if let TermValue::Error(_) = val {
             return val;
         }
-
-        self.variables.insert(id.clone(), val.clone());
-        println!("{} = {:?}", id, val);
+        let top = self.state.len() - 1;
+        self.state[top].variables.insert(id.clone(), val.clone());
         val
     }
     fn visit_logic_or(&mut self, ctx: &Logic_orContext) -> TermValue {
-        println!("visit_logic_or");
+        trace!("visit_logic_or {:?}", ctx.get_text());
         let left = self.visit(&*ctx.left.as_ref().unwrap().as_ref());
         if let TermValue::Error(_) = left {
             return left;
@@ -158,7 +196,7 @@ impl LoxVisitorCompat<'_> for InterpVisit {
         self.visit(ctx.get_child(0).as_ref().unwrap().as_ref())
     }
     fn visit_logic_and(&mut self, ctx: &Logic_andContext) -> TermValue {
-        println!("visit_logic_and");
+        trace!("visit_logic_and {:?}", ctx.get_text());
         let left = self.visit(&*ctx.left.as_ref().unwrap().as_ref());
         if let TermValue::Error(_) = left {
             return left;
@@ -173,7 +211,7 @@ impl LoxVisitorCompat<'_> for InterpVisit {
         right
     }
     fn visit_equality(&mut self, ctx: &EqualityContext) -> TermValue {
-        println!("visit_equality");
+        trace!("visit_equality {:?}", ctx.get_text());
         let left = self.visit(&*ctx.left.as_ref().unwrap().as_ref());
         if let TermValue::Error(_) = left {
             return left;
@@ -201,7 +239,7 @@ impl LoxVisitorCompat<'_> for InterpVisit {
         unreachable!("impossible eq");
     }
     fn visit_comparison(&mut self, ctx: &ComparisonContext) -> TermValue {
-        println!("visit_comparison");
+        trace!("visit_comparison {:?}", ctx.get_text());
         let left = self.visit(&*ctx.left.as_ref().unwrap().as_ref());
         if let TermValue::Error(_) = left {
             return left;
@@ -247,7 +285,7 @@ impl LoxVisitorCompat<'_> for InterpVisit {
         TermValue::Error("must both be numbers".to_string())
     }
     fn visit_term(&mut self, ctx: &antlr::loxparser::TermContext<'_>) -> TermValue {
-        println!("visit_term");
+        trace!("visit_term {:?}", ctx.get_text());
         let left = self.visit(&*ctx.left.as_ref().unwrap().as_ref());
         if let TermValue::Error(_) = left {
             return left;
@@ -275,8 +313,7 @@ impl LoxVisitorCompat<'_> for InterpVisit {
         panic!("x");
     }
     fn visit_factor(&mut self, ctx: &antlr::loxparser::FactorContext<'_>) -> TermValue {
-        println!("visit_factor");
-
+        trace!("visit_factor {:?}", ctx.get_text());
         let left = self.visit(&*ctx.left.as_ref().unwrap().as_ref());
         if let TermValue::Error(_) = left {
             return left;
@@ -300,7 +337,7 @@ impl LoxVisitorCompat<'_> for InterpVisit {
         panic!("must be numbers");
     }
     fn visit_unary_alt(&mut self, ctx: &Unary_altContext) -> TermValue {
-        println!("visit_unary");
+        trace!("visit_unary_alt {:?}", ctx.get_text());
         let right = self.visit(&*ctx.unary().unwrap());
         if let TermValue::Error(_) = right {
             return right;
@@ -322,29 +359,29 @@ impl LoxVisitorCompat<'_> for InterpVisit {
         }
     }
     fn visit_group(&mut self, ctx: &GroupContext) -> Self::Return {
-        println!("visit_group");
+        trace!("visit_group {:?}", ctx.get_text());
         let res = self.visit(ctx.expression().as_ref().unwrap().as_ref());
         res
     }
     fn visit_bool_false(&mut self, _ctx: &Bool_falseContext) -> TermValue {
-        println!("visit_bool_false");
+        trace!("visit_bool_false");
         TermValue::False
     }
     fn visit_bool_true(&mut self, _ctx: &Bool_trueContext) -> TermValue {
-        println!("visit_bool_true");
+        trace!("visit_bool_true");
         TermValue::True
     }
     fn visit_number(&mut self, ctx: &NumberContext) -> TermValue {
-        println!("visit_number");
         let text = ctx.get_text();
+        trace!("visit_number {:?}", text);
         TermValue::Number(text.parse().unwrap())
     }
     fn visit_nil(&mut self, _ctx: &NilContext) -> TermValue {
-        println!("visit_nil");
+        trace!("visit_nil");
         TermValue::Nil
     }
     fn visit_strval(&mut self, ctx: &StrvalContext) -> TermValue {
-        println!("visit_strval");
+        trace!("visit_strval {:?}", ctx.get_text());
         let str = ctx.get_text();
         let str = str.strip_prefix('"').unwrap().strip_suffix('"').unwrap();
         TermValue::StringValue(str.to_string())

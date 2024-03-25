@@ -7,5 +7,11 @@ edition = "2021"
 
 
 [dependencies]
- antlr-rust = { version = "0.3.0-beta" }
+antlr-rust = { version = "0.3.0-beta" }
+anyhow = "1.0.81"
+better_any = "0.2.0"
+bit-set = "0.5.3"
+clap = "4.5.3"
+log = "0.4.21"
+simplelog = "0.12.2"
 #antlr-rust = { path = "c:/work/antlr4rust" }

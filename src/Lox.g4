@@ -3,7 +3,8 @@ program: declaration* EOF;
 declaration: varDecl # variable | statement # statment;
 
 varDecl: 'var' IDENTIFIER ( '=' expr = expression)? ';';
-statement: exprStmt | printStmt;
+statement: exprStmt | printStmt | block;
+block: '{' declaration* '}';
 
 exprStmt: expression ';';
 printStmt: 'print' exp = expression ';';
