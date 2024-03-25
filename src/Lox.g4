@@ -51,3 +51,6 @@ STRING: '"' .*? '"';
 IDENTIFIER: ALPHA ( ALPHA | DIGIT)*;
 ALPHA: 'a' .. 'z' | 'A' .. 'Z' | '_';
 DIGIT: '0' .. '9';
+LINE_COMMENT:
+	'//' .*? '\r'? '\n' -> skip; // Match "//" stuff '\n'
+COMMENT: '/*' .*? '*/' -> skip; // Match "/*" stuff "*/"
