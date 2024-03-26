@@ -10,10 +10,10 @@
             "request": "launch",
             "program": "${workspaceFolder}/target/debug/mylox.exe",
             "args": [
-                "C:/work/craftinginterpreters/test/unexpected_character.lox"
+                "test2.lox"
             ],
             "stopAtEntry": false,
-            "cwd": "${fileDirname}",
+            "cwd": "${workspaceFolder}",
             "environment": [],
             "console": "externalTerminal"
         }

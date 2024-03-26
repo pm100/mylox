@@ -49,6 +49,7 @@ fn main() {
 
             let mut visitor = InterpVisit::new();
             root.accept(&mut visitor);
+            println!("Result: {:?}", visitor.value());
         }
         Err(e) => {
             println!("Error: {:?}", e);

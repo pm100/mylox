@@ -24,7 +24,7 @@ macro_rules! trace {
 
 use simplelog::*;
 use std::fs::File;
-use std::io;
+
 pub fn initlog() {
     CombinedLogger::init(vec![WriteLogger::new(
         LevelFilter::Info,
