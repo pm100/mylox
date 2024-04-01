@@ -1,11 +1,4 @@
-for (var a=0; a < 3; a = a + 1) {
-    for(var j = 0; j < 10;j=j+1){
-        print j;
-        if (j==5) break;
-    }
-  print a;
-  
+fun foo(){
+   //    print 42;
 }
-
-
-break;
+// print 99;

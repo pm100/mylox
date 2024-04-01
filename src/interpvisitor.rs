@@ -368,6 +368,29 @@ impl<'a> LoxVisitorCompat<'a> for InterpVisit<'a> {
     // fn visit_(&mut self, ctx: &antlr::loxparser::Primary_altContext<'a>) -> Self::Return {
     //     self.visit(ctx.get_child(0).as_ref().unwrap().as_ref())
     // }
+
+    fn visit_callfun(&mut self, ctx: &antlr::loxparser::CallfunContext<'a>) -> Self::Return {
+        trace!("visit_callfun {:?}", ctx.get_text());
+        let id = ctx.id.as_ref().unwrap().get_text();
+        let top = self.state.len() - 1;
+        let fidx = match self.state[top].variables.get(&id) {
+            Some(TermValue::Function(fidx)) => *fidx,
+            _ => {
+                return TermValue::Error(format!("Function {} not found", id));
+            }
+        };
+        let f = self.state[top].functions[fidx].clone();
+        let mut result = Self::Return::default();
+        self.state.push(ExecutionState::new());
+        for node in f.get_children() {
+            result = self.visit(node.as_ref());
+            if let TermValue::Error(_) = result {
+                return result;
+            }
+        }
+        self.state.pop();
+        result
+    }
     fn visit_logic_and(&mut self, ctx: &Logic_andContext<'a>) -> TermValue {
         trace!("visit_logic_and {:?}", ctx.get_text());
         let left = self.visit(&*ctx.left.as_ref().unwrap().as_ref());

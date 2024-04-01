@@ -47,9 +47,11 @@ term: left = factor ( ( MINUS | PLUS) right = factor)*;
 factor: left = unary ( ( SLASH | STAR) right = unary)*;
 
 unary: (BANG | MINUS) right = unary	# unary_alt
-	| primary						# primary_alt;
+	| primary						# primary_alt
+	| callfun						# callfun_alt;
 
-// callfun: primary '(' arguments? ')'; arguments: expression ( ',' expression)*;
+callfun: id = primary '(' arguments? ')';
+arguments: expression ( ',' expression)*;
 primary:
 	'true'					# bool_true
 	| 'false'				# bool_false
